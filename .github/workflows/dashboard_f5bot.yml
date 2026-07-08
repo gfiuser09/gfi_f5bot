@@ -1,4 +1,4 @@
-name: Running Darwinbox URLs
+name: Running Dashboard URLs
 
 on:
   schedule:
