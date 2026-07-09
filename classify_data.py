@@ -9,16 +9,83 @@ from f5bot_supabase import SupabaseRestClient, chunked
 
 load_dotenv()
 
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-if not GROQ_API_KEY:
-    raise RuntimeError("Set GROQ_API_KEY in .env.")
-
-client = Groq(api_key=GROQ_API_KEY)
-
 
 MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 ROW_LIMIT = int(os.getenv("CLASSIFY_ROW_LIMIT", "0") or "0")
 INSERT_BATCH_SIZE = max(1, int(os.getenv("CLASSIFY_INSERT_BATCH_SIZE", "10") or "10"))
+
+
+def load_groq_api_keys() -> list[str]:
+    keys: list[str] = []
+
+    primary_key = os.getenv("GROQ_API_KEY", "").strip()
+    if primary_key:
+        keys.append(primary_key)
+
+    for index in range(1, 51):
+        numbered_key = os.getenv(f"GROQ_API_KEY_{index}", "").strip()
+        if numbered_key:
+            keys.append(numbered_key)
+
+    combined_keys = os.getenv("GROQ_API_KEYS", "")
+    for raw_key in combined_keys.replace("\n", ",").split(","):
+        key = raw_key.strip()
+        if key:
+            keys.append(key)
+
+    deduped_keys = list(dict.fromkeys(keys))
+    if not deduped_keys:
+        raise RuntimeError(
+            "Set GROQ_API_KEY, GROQ_API_KEY_2, or GROQ_API_KEYS in .env."
+        )
+    return deduped_keys
+
+
+def is_rate_limit_error(exc: Exception) -> bool:
+    status_code = getattr(exc, "status_code", None)
+    if status_code == 429:
+        return True
+
+    body = str(getattr(exc, "body", "") or "")
+    message = str(exc)
+    return "rate_limit" in body.lower() or "rate limit" in message.lower()
+
+
+class GroqKeyRotator:
+    def __init__(self, api_keys: list[str]) -> None:
+        self.clients = [Groq(api_key=api_key) for api_key in api_keys]
+        self.index = 0
+
+    @property
+    def count(self) -> int:
+        return len(self.clients)
+
+    def create_chat_completion(self, **kwargs: Any) -> Any:
+        last_rate_limit_error: Exception | None = None
+
+        for attempt in range(self.count):
+            key_number = self.index + 1
+            client = self.clients[self.index]
+
+            try:
+                if attempt:
+                    print(f"  Retrying with Groq API key #{key_number}")
+                return client.chat.completions.create(**kwargs)
+            except Exception as exc:
+                if not is_rate_limit_error(exc):
+                    raise
+
+                last_rate_limit_error = exc
+                print(f"  Groq API key #{key_number} hit rate limit.")
+                self.index = (self.index + 1) % self.count
+
+        raise RuntimeError(
+            f"All {self.count} Groq API key(s) hit rate limits."
+        ) from last_rate_limit_error
+
+
+groq_rotator = GroqKeyRotator(load_groq_api_keys())
+print(f"Loaded {groq_rotator.count} Groq API key(s).")
 
 CATEGORIES = [
     "Job seeker in sustainability",
@@ -65,7 +132,7 @@ Respond with ONLY valid JSON in this exact shape, nothing else:
 def classify(title: str, context: str) -> dict:
     user_prompt = f"Title: {title}\n\nContext: {context}"
 
-    response = client.chat.completions.create(
+    response = groq_rotator.create_chat_completion(
         model=MODEL,
         temperature=0,
         response_format={"type": "json_object"},

@@ -16,6 +16,16 @@ jobs:
       F5BOT_EMAIL: ${{secrets.F5BOT_EMAIL}}
       F5BOT_PASSWORD: ${{secrets.F5BOT_PASSWORD}}
       GROQ_API_KEY: ${{secrets.GROQ_API_KEY}}
+      GROQ_API_KEYS: ${{secrets.GROQ_API_KEYS}}
+      GROQ_API_KEY_2: ${{secrets.GROQ_API_KEY_2}}
+      GROQ_API_KEY_3: ${{secrets.GROQ_API_KEY_3}}
+      GROQ_API_KEY_4: ${{secrets.GROQ_API_KEY_4}}
+      GROQ_API_KEY_5: ${{secrets.GROQ_API_KEY_5}}
+      GROQ_API_KEY_6: ${{secrets.GROQ_API_KEY_6}}
+      GROQ_API_KEY_7: ${{secrets.GROQ_API_KEY_7}}
+      GROQ_API_KEY_8: ${{secrets.GROQ_API_KEY_8}}
+      GROQ_API_KEY_9: ${{secrets.GROQ_API_KEY_9}}
+      GROQ_API_KEY_10: ${{secrets.GROQ_API_KEY_10}}
     steps:
       - uses: actions/checkout@v4
 
