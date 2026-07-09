@@ -1,0 +1,30 @@
+name: Sync Supabase to Zoho Sheet
+
+on:
+  schedule:
+    - cron: "0 2 * * *"   # 7:30 AM IST daily, after classify_data
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment: api_key
+
+    env:
+      SUPABASE_URL: ${{secrets.SUPABASE_URL}}
+      SUPABASE_KEY: ${{secrets.SUPABASE_KEY}}
+      ZOHO_CLIENT_ID: ${{secrets.ZOHO_CLIENT_ID}}
+      ZOHO_CLIENT_SECRET: ${{secrets.ZOHO_CLIENT_SECRET}}
+      ZOHO_REFRESH_TOKEN: ${{secrets.ZOHO_REFRESH_TOKEN}}
+      ZOHO_RESOURCE_ID: ${{secrets.ZOHO_RESOURCE_ID}}
+      ZOHO_WORKSHEET_NAME: ${{secrets.ZOHO_WORKSHEET_NAME}}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - run: pip install requests
+
+      - run: python "sync_to_zoho.py"

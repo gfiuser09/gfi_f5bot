@@ -2,7 +2,7 @@ name: Running History of reddit URLs
 
 on:
   schedule:
-    - cron: "10 */2 * * *"  # Every 2 hours, after dashboard
+    - cron: "40 1 * * *"   # 7:10 AM IST daily, 10 min after dashboard
   workflow_dispatch:
 
 jobs:
