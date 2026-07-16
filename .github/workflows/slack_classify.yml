@@ -1,0 +1,37 @@
+name: Slack Message Classification
+
+on:
+  schedule:
+    # 7:00 AM IST = 1:30 AM UTC (IST is UTC+5:30)
+    - cron: "30 1 * * *"
+  workflow_dispatch: {}  # allows manual trigger from the Actions tab
+
+jobs:
+  classify:
+    runs-on: ubuntu-latest
+    environment: api_key
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests python-dotenv groq
+
+      - name: Run Slack message classification script
+        env:
+          ZOHO_CLIENT_ID: ${{ secrets.ZOHO_CLIENT_ID }}
+          ZOHO_CLIENT_SECRET: ${{ secrets.ZOHO_CLIENT_SECRET }}
+          ZOHO_REFRESH_TOKEN: ${{ secrets.ZOHO_REFRESH_TOKEN }}
+          ZOHO_RESOURCE_ID: ${{ secrets.ZOHO_RESOURCE_ID }}
+          ZOHO_WORKSHEET_NAME1: ${{ secrets.ZOHO_WORKSHEET_NAME1 }}
+          ZOHO_SLACK_OUTPUT_WORKSHEET_NAME: ${{ secrets.ZOHO_SLACK_OUTPUT_WORKSHEET_NAME }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GROQ_MODEL: ${{ vars.GROQ_MODEL }}
+        run: python slack_classify.py

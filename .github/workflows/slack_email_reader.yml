@@ -1,0 +1,39 @@
+name: Slack Email Sync to Zoho Sheet
+
+on:
+  schedule:
+    # 6:00 AM IST = 12:30 AM UTC (IST is UTC+5:30)
+    - cron: "30 0 * * *"
+
+  workflow_dispatch: {}  # allows manual trigger from the Actions tab
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: api_key
+
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests python-dotenv
+
+      - name: Run Slack email sync script
+        env:
+          Email_id: ${{ secrets.EMAIL_ID }}
+          APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
+          SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
+          ZOHO_CLIENT_ID: ${{ secrets.ZOHO_CLIENT_ID }}
+          ZOHO_CLIENT_SECRET: ${{ secrets.ZOHO_CLIENT_SECRET }}
+          ZOHO_REFRESH_TOKEN: ${{ secrets.ZOHO_REFRESH_TOKEN }}
+          ZOHO_RESOURCE_ID: ${{ secrets.ZOHO_RESOURCE_ID }}
+          ZOHO_WORKSHEET_NAME1: ${{ secrets.ZOHO_WORKSHEET_NAME1 }}
+        run: python slack_email_sync.py
