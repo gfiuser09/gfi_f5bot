@@ -36,4 +36,4 @@ jobs:
           ZOHO_REFRESH_TOKEN: ${{ secrets.ZOHO_REFRESH_TOKEN }}
           ZOHO_RESOURCE_ID: ${{ secrets.ZOHO_RESOURCE_ID }}
           ZOHO_WORKSHEET_NAME1: ${{ secrets.ZOHO_WORKSHEET_NAME1 }}
-        run: python slack_email_sync.py
+        run: python email_reader.py
