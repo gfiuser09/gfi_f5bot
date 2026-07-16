@@ -10,7 +10,7 @@ from f5bot_supabase import SupabaseRestClient, chunked
 load_dotenv()
 
 
-MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+MODEL = os.getenv("GROQ_MODEL") or "openai/gpt-oss-120b"
 ROW_LIMIT = int(os.getenv("CLASSIFY_ROW_LIMIT", "0") or "0")
 INSERT_BATCH_SIZE = max(1, int(os.getenv("CLASSIFY_INSERT_BATCH_SIZE", "10") or "10"))
 
