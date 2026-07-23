@@ -41,14 +41,24 @@ def extract_subreddit(url):
     return m.group(1) if m else ""
 
 
-def format_date(iso_str):
-    if not iso_str:
+def format_date(date_str):
+    """
+    Converts timestamps like:
+        2026-07-20T10:10:11+00:00
+        2026-07-20T10:10:11Z
+        2026-07-20 10:10:11
+    to:
+        2026-07-20
+    """
+    if not date_str:
         return ""
+
     try:
-        dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
-        return dt.strftime("%Y-%m-%d %H:%M")
-    except (ValueError, TypeError):
-        return iso_str
+        dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+        return dt.strftime("%Y-%m-%d")
+    except Exception:
+        # Fallback: just return first 10 characters if possible
+        return str(date_str)[:10]
 
 
 def get_zoho_access_token():
@@ -61,8 +71,11 @@ def get_zoho_access_token():
             "grant_type": "refresh_token",
         },
     )
+
     if not resp.ok:
-        print("Zoho token refresh failed:", resp.text)
+        print("Zoho token refresh failed:")
+        print(resp.text)
+
     resp.raise_for_status()
     return resp.json()["access_token"]
 
@@ -76,54 +89,65 @@ def get_unsynced_rows():
         },
         params={
             "synced_to_sheet": "eq.false",
-            # Embed the related reddit_history row via the FK, to pull
-            # in title + the post's original timestamp.
             "select": "*,reddit_history(title,timestamp_text)",
         },
     )
+
     if not resp.ok:
-        print("Supabase fetch failed:", resp.text)
+        print("Supabase fetch failed:")
+        print(resp.text)
+
     resp.raise_for_status()
     return resp.json()
 
 
 def map_row_to_sheet_fields(row):
     history = row.get("reddit_history") or {}
+
     post_date = format_date(history.get("timestamp_text"))
 
     return {
         "Date of post": post_date,
-        "Date of comment": post_date,  # same value in both, per your call
+        "Date of comment": post_date,
         "Subreddit name": extract_subreddit(row.get("reddit_url")),
-        "Post title": history.get("title"),
-        "post URL": row.get("reddit_url"),
-        "Category classification": row.get("category"),
-        "confidence score": row.get("confidence"),
-        "suggested response": row.get("reason"),  # see note below
+        "Post title": history.get("title") or "",
+        "post URL": row.get("reddit_url") or "",
+        "Category classification": row.get("category") or "",
+        "confidence score": row.get("confidence") or "",
+        "suggested response": row.get("reason") or "",
     }
 
 
 def push_to_zoho(access_token, rows):
-    mapped_rows = [map_row_to_sheet_fields(row) for row in rows]
+    mapped_rows = [map_row_to_sheet_fields(r) for r in rows]
 
     payload = {
         "method": "worksheet.jsondata.append",
         "resource_id": ZOHO_RESOURCE_ID,
         "worksheet_name": ZOHO_WORKSHEET_NAME,
-        "json_data": json.dumps(mapped_rows, default=str),
+        "json_data": json.dumps(mapped_rows, ensure_ascii=False),
     }
+
     resp = requests.post(
         f"https://sheet.zoho.in/api/v2/{ZOHO_RESOURCE_ID}",
-        headers={"Authorization": f"Zoho-oauthtoken {access_token}"},
+        headers={
+            "Authorization": f"Zoho-oauthtoken {access_token}",
+        },
         data=payload,
     )
+
     if not resp.ok:
-        print("Zoho push failed:", resp.text)
+        print("Zoho push failed:")
+        print(resp.text)
+
     resp.raise_for_status()
     return resp.json()
 
 
 def mark_as_synced(row_ids):
+    if not row_ids:
+        return
+
     resp = requests.patch(
         f"{SUPABASE_URL}/rest/v1/{TABLE_NAME}",
         headers={
@@ -131,16 +155,24 @@ def mark_as_synced(row_ids):
             "Authorization": f"Bearer {SUPABASE_KEY}",
             "Content-Type": "application/json",
         },
-        params={"id": f"in.({','.join(map(str, row_ids))})"},
-        json={"synced_to_sheet": True},
+        params={
+            "id": f"in.({','.join(map(str, row_ids))})"
+        },
+        json={
+            "synced_to_sheet": True
+        },
     )
+
     if not resp.ok:
-        print("Supabase mark-as-synced failed:", resp.text)
+        print("Supabase mark-as-synced failed:")
+        print(resp.text)
+
     resp.raise_for_status()
 
 
 def main():
     rows = get_unsynced_rows()
+
     if not rows:
         print("Nothing new to sync.")
         return
@@ -148,14 +180,17 @@ def main():
     print(f"Found {len(rows)} unsynced row(s).")
 
     token = get_zoho_access_token()
+
     result = push_to_zoho(token, rows)
-    print("Zoho response:", result)
+
+    print("Zoho response:")
+    print(result)
 
     if result.get("status") == "success":
         mark_as_synced([r["id"] for r in rows])
-        print(f"Synced {len(rows)} row(s).")
+        print(f"Successfully synced {len(rows)} row(s).")
     else:
-        print("Zoho did not report success — rows were NOT marked as synced. Will retry next run.")
+        print("Zoho did not report success. Rows were NOT marked as synced.")
 
 
 if __name__ == "__main__":
