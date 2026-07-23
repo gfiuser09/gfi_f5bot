@@ -1,6 +1,8 @@
 import csv
 import json
 import os
+import re
+from email.utils import parsedate_to_datetime
 from io import StringIO
 from typing import Any
 
@@ -57,6 +59,32 @@ REQUIRED_VARS = {
 missing = [k for k, v in REQUIRED_VARS.items() if not v]
 if missing:
     raise SystemExit(f"Missing required environment variables: {', '.join(missing)}")
+
+
+DATE_ONLY_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
+
+
+def format_date_only(raw_value: str) -> str:
+    """Convert a raw date string to plain YYYY-MM-DD.
+
+    The 'date' column comes through as an RFC 2822 email date, e.g.
+    "Wed, 22 Jul 2026 09:19:22 +0000". We parse that with the stdlib
+    email.utils parser and keep just the date. If a value ever arrives
+    in some other shape, we fall back to pulling a YYYY-MM-DD pattern
+    out of it directly, and only return the raw string untouched if
+    neither approach finds a date - so we never silently corrupt an
+    unexpected format.
+    """
+    if not raw_value:
+        return ""
+    try:
+        dt = parsedate_to_datetime(raw_value)
+        if dt is not None:
+            return dt.strftime("%Y-%m-%d")
+    except (TypeError, ValueError, IndexError):
+        pass
+    m = DATE_ONLY_RE.search(raw_value)
+    return m.group(1) if m else raw_value
 
 
 def load_groq_api_keys() -> list[str]:
@@ -310,6 +338,7 @@ def build_output_row(
     classification: dict[str, Any],
 ) -> dict[str, Any]:
     output = {column: sheet_value(input_row, column) for column in INPUT_COLUMNS}
+    output["date"] = format_date_only(output["date"])
     output.update({
         "category": classification["category"],
         "relevant": str(classification["relevant"]).lower(),
